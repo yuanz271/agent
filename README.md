@@ -12,14 +12,10 @@ All skill files are in the [`skills`](skills) folder:
 * [`/update-changelog`](skills/update-changelog) - Claude Skill for updating changelogs with notable user-facing changes
 * [`/ghidra`](skills/ghidra) - Claude Skill for reverse engineering binaries using Ghidra's headless analyzer
 * [`/github`](skills/github) - Claude Skill for interacting with GitHub via the `gh` CLI (issues, PRs, runs, and APIs)
-* [`/openscad`](skills/openscad) - Claude Skill for creating and rendering OpenSCAD 3D models and exporting STL files
-* [`/web-browser`](skills/web-browser) - Claude Skill for using Puppeteer in a Node environment to browse the web
+* [`/google-workspace`](skills/google-workspace) - Claude Skill for accessing Google Workspace APIs via local helper scripts (Drive, Docs, Calendar, Gmail, etc.)
 * [`/tmux`](skills/tmux) - Claude Skill for driving tmux directly with keystrokes and pane output scraping
-* [`/sentry`](skills/sentry) - Alternative way to access Sentry as a Claude Skill for reading issues
 * [`/pi-share`](skills/pi-share) - Claude Skill for loading and parsing session transcripts from shittycodingagent.ai
-* [`/anachb`](skills/anachb) - Claude Skill for querying Austrian public transport (VOR AnachB) for departures, routes, and disruptions
-* [`/oebb-scotty`](skills/oebb-scotty) - Claude Skill for Austrian rail travel planning via ÖBB Scotty API
-* [`/frontend-design`](skills/frontend-design) - Claude Skill for designing and implementing distinctive frontend interfaces
+* [`/summarize`](skills/summarize) - Claude Skill for converting URLs/files to Markdown with optional summaries
 * [`/uv`](skills/uv) - Claude Skill for using `uv` for Python dependency management and script execution
 * [`/mermaid`](skills/mermaid) - Claude Skill for creating and validating Mermaid diagrams with the official Mermaid CLI
 
