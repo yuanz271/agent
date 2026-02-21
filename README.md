@@ -8,16 +8,16 @@ It is released on npm as `mitsupi` for use with the [Pi](https://buildwithpi.ai/
 
 All skill files are in the [`skills`](skills) folder:
 
-* [`/commit`](skills/commit) - Claude Skill for creating git commits using concise Conventional Commits-style subjects
-* [`/update-changelog`](skills/update-changelog) - Claude Skill for updating changelogs with notable user-facing changes
-* [`/ghidra`](skills/ghidra) - Claude Skill for reverse engineering binaries using Ghidra's headless analyzer
-* [`/github`](skills/github) - Claude Skill for interacting with GitHub via the `gh` CLI (issues, PRs, runs, and APIs)
-* [`/google-workspace`](skills/google-workspace) - Claude Skill for accessing Google Workspace APIs via local helper scripts (Drive, Docs, Calendar, Gmail, etc.)
-* [`/tmux`](skills/tmux) - Claude Skill for driving tmux directly with keystrokes and pane output scraping
-* [`/pi-share`](skills/pi-share) - Claude Skill for loading and parsing session transcripts from shittycodingagent.ai
-* [`/summarize`](skills/summarize) - Claude Skill for converting URLs/files to Markdown with optional summaries
-* [`/uv`](skills/uv) - Claude Skill for using `uv` for Python dependency management and script execution
-* [`/mermaid`](skills/mermaid) - Claude Skill for creating and validating Mermaid diagrams with the official Mermaid CLI
+* [`/commit`](skills/commit) - Git commits using concise Conventional Commits-style subjects
+* [`/update-changelog`](skills/update-changelog) - Updating changelogs with notable user-facing changes
+* [`/github`](skills/github) - Interacting with GitHub via the `gh` CLI (issues, PRs, runs, and APIs)
+* [`/google-workspace`](skills/google-workspace) - Accessing Google Workspace APIs via local helper scripts (Drive, Docs, Calendar, Gmail, etc.)
+* [`/mermaid`](skills/mermaid) - Creating and validating Mermaid diagrams with the official Mermaid CLI
+* [`/pdf`](skills/pdf) - PDF processing: text/table extraction, merge/split/rotate, form filling (fillable and non-fillable), OCR, encryption, and PDF creation
+* [`/pi-share`](skills/pi-share) - Loading and parsing session transcripts from shittycodingagent.ai
+* [`/summarize`](skills/summarize) - Converting URLs/files to Markdown with optional summaries
+* [`/tmux`](skills/tmux) - Driving tmux directly with keystrokes and pane output scraping
+* [`/uv`](skills/uv) - Using `uv` for Python dependency management and script execution
 
 ## PI Coding Agent Extensions
 
@@ -31,15 +31,19 @@ Custom extensions for the PI Coding Agent can be found in the [`pi-extensions`](
 * [`go-to-bed.ts`](pi-extensions/go-to-bed.ts) - Late-night safety guard that encourages sleep during quiet hours (00:00-06:00 local time) and requires explicit confirmation to continue after midnight.
 * [`loop.ts`](pi-extensions/loop.ts) - Runs a prompt loop for rapid iterative coding with optional auto-continue control.
 * [`notify.ts`](pi-extensions/notify.ts) - Sends native desktop notifications when the agent finishes (OSC 777 compatible terminals).
+* [`plan-mode.ts`](pi-extensions/plan-mode.ts) - Read-only planning sandbox inspired by OpenCode's plan/build architecture. Enforces read-only exploration via tool restriction, bash allowlist, and system prompt injection, then transitions to full build mode with plan execution tracking.
 * [`review.ts`](pi-extensions/review.ts) - Code review command inspired by Codex. Supports reviewing uncommitted changes, against a base branch (PR style), specific commits, or with custom instructions. Includes Ctrl+R shortcut.
 * [`session-breakdown.ts`](pi-extensions/session-breakdown.ts) - Interactive TUI to analyze the last 7/30/90 days of Pi session usage (sessions + cost by model) with a GitHub-style usage graph.
 * [`todos.ts`](pi-extensions/todos.ts) - Todo manager extension with file-backed storage and a TUI for listing and editing todos.
 * [`uv.ts`](pi-extensions/uv.ts) - Helpers for working with uv (Python packaging/workflows).
 * [`whimsical.ts`](pi-extensions/whimsical.ts) - Replaces the default "Thinking..." message with random whimsical phrases like "Reticulating splines...", "Consulting the void...", or "Bribing the compiler...".
 
-## PI Coding Agent Themes
+## Docs
 
-This repository includes custom themes for the PI Coding Agent. The themes can be found in the [`pi-themes`](pi-themes) folder and customize the appearance and behavior of the agent interface.
+Reference documents in the [`docs`](docs) folder:
+
+* [`opencode-plan-mode.md`](docs/opencode-plan-mode.md) - OpenCode's plan mode architecture (two-agent plan/build workflow)
+* [`pi-extension-writing-guide.md`](docs/pi-extension-writing-guide.md) - Guide to writing pi-coding-agent extensions
 
 ## Plumbing Commands
 

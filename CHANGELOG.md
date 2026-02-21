@@ -4,6 +4,18 @@ All notable changes to agent-stuff are documented here.
 
 ## Unreleased
 
+* Added `plan-mode.ts` extension — read-only planning sandbox inspired by OpenCode's plan/build architecture, with tool restriction, bash allowlist, system prompt injection, and plan execution tracking.
+* Added `pdf` skill for PDF processing (text/table extraction, merge/split/rotate, form filling, OCR, encryption, and PDF creation) with `uv run` inline script metadata.
+* Added `prompt-editor.ts` extension for in-editor prompt mode selection with per-mode model and thinking persistence.
+* Added `go-to-bed.ts` extension — late-night safety guard that encourages sleep during quiet hours.
+* Added CLI interface for session control.
+* Added mode management UI to prompt editor (add, rename, delete, edit).
+* Fixed review branch selector to omit current branch.
+* Fixed prompt-editor mode persistence and detection logic.
+* Fixed summarize skill to write unique temp markdown files.
+* Removed `ghidra` skill and `nightowl` theme.
+* Added `docs/` folder with OpenCode plan mode study and pi extension writing guide.
+
 ## 1.3.0
 
 * Added `/session-breakdown` command with interactive TUI showing sessions, messages, tokens, and cost over the last 7/30/90 days with a GitHub-style contribution calendar.
