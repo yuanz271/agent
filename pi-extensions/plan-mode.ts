@@ -11,7 +11,7 @@
  * 4. Plan file exception — the only writable file is the plan markdown file
  *
  * Features:
- * - /plan command and Ctrl+Alt+P shortcut to toggle
+ * - /plan command to toggle
  * - --plan CLI flag to start in plan mode
  * - Single plan file (.pi/plans/<timestamp>.md) as the planning artifact
  * - 5-phase guided workflow (understand → design → review → finalize → execute)
@@ -20,17 +20,16 @@
  * - Session-persistent state (survives resume/fork/tree navigation)
  *
  * Usage:
- * 1. Enter plan mode via /plan, Ctrl+Alt+P, or --plan flag
+ * 1. Enter plan mode via /plan or --plan flag
  * 2. Describe your task — the agent explores code and writes a plan
  * 3. Review the plan, ask clarifications
- * 4. Toggle off plan mode via /plan or Ctrl+Alt+P to switch to build mode
+ * 4. Toggle off plan mode via /plan to switch to build mode
  * 5. Agent implements the plan, tracking steps as [DONE:n]
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
-import { Text, Key } from "@mariozechner/pi-tui";
+
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -462,17 +461,6 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 					.map((s) => `${s.step}. ${s.completed ? "✓" : "○"} ${s.text}`)
 					.join("\n");
 				ctx.ui.notify(`Progress: ${completed}/${state.steps.length}\n${list}`, "info");
-			}
-		},
-	});
-
-	pi.registerShortcut(Key.ctrlAlt("p"), {
-		description: "Toggle plan mode",
-		handler: async (ctx) => {
-			if (state.enabled) {
-				exitPlanMode(ctx);
-			} else {
-				enterPlanMode(ctx);
 			}
 		},
 	});
