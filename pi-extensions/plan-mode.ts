@@ -15,7 +15,7 @@
  * - --plan CLI flag to start in plan mode
  * - Single plan file (.pi/plans/<timestamp>.md) as the planning artifact
  * - 5-phase guided workflow (understand → design → review → finalize → execute)
- * - Automatic transition prompt from plan → build mode
+ * - Manual toggle between plan and build mode (no automatic prompts)
  * - Progress tracking widget during plan execution
  * - Session-persistent state (survives resume/fork/tree navigation)
  *
@@ -23,7 +23,7 @@
  * 1. Enter plan mode via /plan, Ctrl+Alt+P, or --plan flag
  * 2. Describe your task — the agent explores code and writes a plan
  * 3. Review the plan, ask clarifications
- * 4. Choose "Execute" to switch to build mode with full tool access
+ * 4. Toggle off plan mode via /plan or Ctrl+Alt+P to switch to build mode
  * 5. Agent implements the plan, tracking steps as [DONE:n]
  */
 
@@ -613,35 +613,10 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			const extracted = extractPlanSteps(getTextContent(lastAssistant));
 			if (extracted.length > 0) {
 				state.steps = extracted;
+				persistState();
+				updateUI(ctx);
 			}
 		}
-
-		// Prompt the user for next action
-		const options = state.steps.length > 0
-			? ["Execute the plan", "Refine the plan", "Stay in plan mode", "Exit plan mode"]
-			: ["Stay in plan mode", "Exit plan mode"];
-
-		const choice = await ctx.ui.select("Plan mode — what next?", options);
-
-		if (choice === "Execute the plan") {
-			startExecution(ctx);
-			updateUI(ctx);
-
-			// Pre-fill the editor and let the user send when ready (like /end-review)
-			if (!ctx.ui.getEditorText().trim()) {
-				ctx.ui.setEditorText("Execute the plan");
-			}
-
-			ctx.ui.notify("Plan mode exited. Edit the prompt and send to start execution.", "info");
-		} else if (choice === "Refine the plan") {
-			const refinement = await ctx.ui.editor("Refine the plan:", "");
-			if (refinement?.trim()) {
-				pi.sendUserMessage(refinement.trim());
-			}
-		} else if (choice === "Exit plan mode") {
-			exitPlanMode(ctx);
-		}
-		// "Stay in plan mode" — do nothing, wait for next user input
 	});
 
 	// ========================================================================
