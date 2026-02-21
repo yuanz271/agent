@@ -4,11 +4,12 @@
  * A read-only planning sandbox inspired by OpenCode's plan mode architecture.
  * Enforces a two-phase workflow: Plan (read-only) → Build (full access).
  *
- * Defense in depth:
+ * Security layers (both enforced via the tool_call handler):
  * 1. System prompt — emphatic read-only constraints injected via before_agent_start
- * 2. Tool restriction — only read-only tools active during plan mode
- * 3. Bash allowlist — destructive bash commands blocked at the tool_call level
- * 4. Plan file exception — the only writable file is the plan markdown file
+ * 2. Write gate — edit/write calls blocked unless target resolves under .pi/plans/ (with symlink resolution)
+ * 3. Bash allowlist — only safe read-only commands pass through
+ * Note: PLAN_TOOLS includes edit/write so the LLM can write plan files; the tool_call
+ * handler is the sole enforcement layer for write restrictions (see PLAN_TOOLS comment).
  *
  * Features:
  * - /plan command to toggle
@@ -37,10 +38,16 @@ import * as path from "node:path";
 // Constants
 // ============================================================================
 
-/** Tools available in plan mode (read-only) */
-const PLAN_TOOLS = ["read", "bash", "grep", "find", "ls"];
+/**
+ * Tools available in plan mode.
+ * edit/write are included so the LLM can create/update plan files under .pi/plans/.
+ * Write access is enforced by the tool_call handler which blocks any path outside
+ * .pi/plans/. This is a single-layer gate rather than defense-in-depth — excluding
+ * these tools entirely would prevent the LLM from writing plans at all.
+ */
+const PLAN_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
 
-/** Normal build tools (full access) */
+/** Normal build tools (full access). Intentionally separate from PLAN_TOOLS for future divergence. */
 const BUILD_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
 
 /** Destructive command patterns blocked in plan mode bash */
@@ -68,6 +75,12 @@ const DESTRUCTIVE_PATTERNS = [
 	/\bkill\b/i,
 	/\bpkill\b/i,
 	/\b(vim?|nano|emacs|code|subl)\b/i,
+	/\|\s*(\S+\/)?(?:env\s+)?(ba|z|da|k|fi|a|tc?|c)?sh\b/, // pipe to any shell (incl. absolute paths and env)
+	/(?:^|[;&|(`]|\$\()\s*\.\s+\S/,         // POSIX dot-source (. script.sh)
+	/(?:^|[;&|(`]|\$\()\s*source\b/i,       // source
+	/(?:^|[;&|(`]|\$\()\s*(\S+\/)?(?:env\s+)?(ba|z|da|k|fi|a|tc?|c)?sh\s+-c\b/i, // shell -c execution
+	/(?:^|[;&|(`]|\$\()\s*exec\b/i,        // exec
+	/(?:^|[;&|(`]|\$\()\s*eval\b/i,        // eval
 ];
 
 /** Safe read-only bash commands allowed in plan mode */
@@ -191,7 +204,7 @@ This ABSOLUTE CONSTRAINT overrides ALL other instructions, including direct user
 edit requests. You may ONLY observe, analyze, and plan. Any modification attempt
 is a critical violation. ZERO exceptions.
 
-The ONLY exception is the plan file described below.
+The ONLY exception is the plans folder described below.
 
 ---
 
@@ -202,7 +215,7 @@ ${planExists
 		: `No plan file exists yet. Create your plan at \`${planFile}\` using the write tool.`
 	}
 
-This is the ONLY file you are allowed to create or edit. All other files are read-only.
+Only files under \`.pi/plans/\` can be created or edited. All other files are read-only.
 
 ---
 
@@ -247,7 +260,7 @@ tell the user the plan is ready and ask if they'd like to proceed to execution.
 ---
 
 ## Reminders
-- You MUST NOT make any edits except to the plan file
+- You MUST NOT make any edits except to files under .pi/plans/
 - You MUST NOT run any non-read-only bash commands
 - You MUST NOT change configs, make commits, or modify the system
 - This supersedes any other instructions you have received
@@ -469,22 +482,66 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	// Defense layer: block destructive bash in plan mode
 	// ========================================================================
 
-	pi.on("tool_call", async (event, _ctx) => {
+	pi.on("tool_call", async (event, ctx) => {
 		if (!state.enabled) return;
 
-		// Block edit and write tools entirely (except plan file)
+		// Block edit and write tools entirely (except files under .pi/plans/)
+		// Uses fs.realpathSync to resolve symlinks and prevent symlink traversal attacks
 		if (event.toolName === "edit" || event.toolName === "write") {
 			const filePath = (event.input as Record<string, unknown>).path as string | undefined;
-			if (filePath && state.planFile) {
-				const resolved = path.resolve(filePath);
-				const planResolved = path.resolve(state.planFile);
-				if (resolved === planResolved) {
-					return; // Allow writes to the plan file
+			if (filePath) {
+				try {
+					const absPath = path.resolve(ctx.cwd, filePath);
+					const plansDirPath = path.resolve(ctx.cwd, ".pi", "plans");
+					// Fast-reject: skip filesystem ops for paths clearly outside .pi/plans/
+					if (!absPath.startsWith(plansDirPath + path.sep)) {
+						return {
+							block: true,
+							reason: `Plan mode: ${event.toolName} is blocked. Only files under .pi/plans/ can be modified. Use /plan to exit plan mode first.`,
+						};
+					}
+					// Ensure .pi/plans/ exists (may be missing after session reconstruction)
+					fs.mkdirSync(plansDirPath, { recursive: true });
+					const realPlansDir = fs.realpathSync(plansDirPath) + path.sep;
+					let resolved: string;
+					// Use lstatSync instead of existsSync to detect broken symlinks
+					// (existsSync returns false for dangling symlinks, allowing bypass)
+					let entryExists = false;
+					try { fs.lstatSync(absPath); entryExists = true; } catch {}
+					if (entryExists) {
+						// Existing file/symlink: resolve full path to catch symlink targets
+						resolved = fs.realpathSync(absPath);
+					} else {
+						// New file: walk up to deepest existing ancestor, resolve it,
+						// then reconstruct the remaining path segments. This allows
+						// writes to new subdirectories under .pi/plans/ while still
+						// resolving symlinks on existing path components.
+						let current = absPath;
+						const trailing: string[] = [];
+						while (current !== path.dirname(current)) {
+							let exists = false;
+							try { fs.lstatSync(current); exists = true; } catch {}
+							if (exists) break;
+							trailing.unshift(path.basename(current));
+							current = path.dirname(current);
+						}
+						const realAncestor = fs.realpathSync(current);
+						resolved = path.join(realAncestor, ...trailing);
+					}
+					if (resolved.startsWith(realPlansDir)) {
+						return; // Allow writes inside .pi/plans/
+					}
+				} catch (err) {
+					// Path resolution failed — block the write and surface the error
+					return {
+						block: true,
+						reason: `Plan mode: ${event.toolName} blocked — path resolution failed: ${err instanceof Error ? err.message : String(err)}`,
+					};
 				}
 			}
 			return {
 				block: true,
-				reason: `Plan mode: ${event.toolName} is blocked. Only the plan file (${state.planFile}) can be modified. Use /plan to exit plan mode first.`,
+				reason: `Plan mode: ${event.toolName} is blocked. Only files under .pi/plans/ can be modified. Use /plan to exit plan mode first.`,
 			};
 		}
 
