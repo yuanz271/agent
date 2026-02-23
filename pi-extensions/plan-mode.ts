@@ -24,8 +24,13 @@
  * 1. Enter plan mode via /plan or --plan flag
  * 2. Describe your task — the agent explores code and writes a plan
  * 3. Review the plan, ask clarifications
- * 4. Toggle off plan mode via /plan to switch to build mode
+ * 4. Exit plan mode via /end-plan to switch to build mode
  * 5. Agent implements the plan, tracking steps as [DONE:n]
+ *
+ * Commands:
+ *   /plan          — create a new plan and enter plan mode
+ *   /plan <name>   — edit an existing plan, or create a new one named <name>
+ *   /end-plan      — exit plan mode and switch to build mode
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
@@ -189,6 +194,42 @@ function getPlanFilePath(cwd: string): string {
 	return path.join(plansDir, `${timestamp}.md`);
 }
 
+/**
+ * Resolve a user-supplied plan argument to a file path.
+ * Returns { path, exists } — the path always points under .pi/plans/,
+ * and `exists` indicates whether the file is already on disk.
+ */
+function resolvePlanArg(cwd: string, arg: string): { path: string; exists: boolean } {
+	const plansDir = path.join(cwd, ".pi", "plans");
+	if (!fs.existsSync(plansDir)) {
+		fs.mkdirSync(plansDir, { recursive: true });
+	}
+
+	// Try to find an existing file (absolute/relative path, under plans dir, with .md)
+	const candidates = [
+		path.resolve(cwd, arg),
+		path.join(plansDir, arg),
+		...(arg.endsWith(".md") ? [] : [path.join(plansDir, arg + ".md")]),
+	];
+	for (const candidate of candidates) {
+		if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+			return { path: candidate, exists: true };
+		}
+	}
+
+	// Not found — generate a new path named after the argument's basename
+	const base = path.basename(arg);
+	const name = base.endsWith(".md") ? base : base + ".md";
+	return { path: path.join(plansDir, name), exists: false };
+}
+
+/** List existing plan file basenames under .pi/plans/ */
+function listPlanFiles(cwd: string): string[] {
+	const plansDir = path.join(cwd, ".pi", "plans");
+	if (!fs.existsSync(plansDir)) return [];
+	return fs.readdirSync(plansDir).filter((f) => f.endsWith(".md")).sort().reverse();
+}
+
 // ============================================================================
 // Prompts
 // ============================================================================
@@ -337,6 +378,9 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	// Track whether we just transitioned from plan → build (for system prompt injection)
 	let justSwitchedToBuild = false;
 
+	// Cache the last known cwd for use in contexts without ExtensionContext (e.g. autocomplete)
+	let lastCwd: string = process.cwd();
+
 	// ========================================================================
 	// CLI flag
 	// ========================================================================
@@ -352,6 +396,8 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	// ========================================================================
 
 	function updateUI(ctx: ExtensionContext): void {
+		lastCwd = ctx.cwd;
+
 		// Footer status
 		if (state.executing && state.steps.length > 0) {
 			const completed = state.steps.filter((s) => s.completed).length;
@@ -386,7 +432,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	// Enter / exit plan mode
 	// ========================================================================
 
-	function enterPlanMode(ctx: ExtensionContext): void {
+	function enterPlanMode(ctx: ExtensionContext, planFile?: string): void {
 		if (state.enabled) {
 			ctx.ui.notify("Already in plan mode", "warning");
 			return;
@@ -398,13 +444,16 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		state.enabled = true;
 		state.executing = false;
 		state.steps = [];
-		state.planFile = state.planFile ?? getPlanFilePath(ctx.cwd);
+		state.planFile = planFile ?? state.planFile ?? getPlanFilePath(ctx.cwd);
 
 		pi.setActiveTools(PLAN_TOOLS);
 		persistState();
 		updateUI(ctx);
 
-		ctx.ui.notify("Plan mode enabled — read-only exploration active", "info");
+		const label = planFile
+			? `Plan mode enabled — editing ${path.basename(state.planFile!)}`
+			: "Plan mode enabled — read-only exploration active";
+		ctx.ui.notify(label, "info");
 	}
 
 	function exitPlanMode(ctx: ExtensionContext): void {
@@ -425,7 +474,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 
 		// Pre-fill editor so the user can kick off execution
 		if (!ctx.ui.getEditorText().trim()) {
-			ctx.ui.setEditorText("Execute the plan");
+			ctx.ui.setEditorText("Make todos and execute the plan");
 		}
 
 		ctx.ui.notify("Plan mode disabled — full tool access restored", "info");
@@ -448,13 +497,39 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	// ========================================================================
 
 	pi.registerCommand("plan", {
-		description: "Toggle plan mode (read-only exploration and planning)",
-		handler: async (_args, ctx) => {
+		description: "Enter plan mode: /plan [name] — creates or edits a plan",
+		getArgumentCompletions: (prefix: string) => {
+			const files = listPlanFiles(lastCwd);
+			const items = files.map((f) => ({ value: f, label: f }));
+			const filtered = items.filter((i) => i.value.startsWith(prefix));
+			return filtered.length > 0 ? filtered : items.length > 0 ? items : null;
+		},
+		handler: async (args, ctx) => {
 			if (state.enabled) {
-				exitPlanMode(ctx);
+				ctx.ui.notify("Already in plan mode. Use /end-plan to exit.", "warning");
+				return;
+			}
+
+			const planArg = typeof args === "string" ? args.trim() : "";
+
+			if (planArg) {
+				// /plan <name> — resolve to existing file or create a new named plan
+				const { path: planPath, exists } = resolvePlanArg(ctx.cwd, planArg);
+				enterPlanMode(ctx, planPath);
+				if (exists) {
+					ctx.ui.notify(`Editing existing plan: ${path.basename(planPath)}`, "info");
+				}
 			} else {
+				// /plan (no args) — create a new timestamped plan
 				enterPlanMode(ctx);
 			}
+		},
+	});
+
+	pi.registerCommand("end-plan", {
+		description: "Exit plan mode and switch to build mode",
+		handler: async (_args, ctx) => {
+			exitPlanMode(ctx);
 		},
 	});
 
@@ -497,7 +572,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 					if (!absPath.startsWith(plansDirPath + path.sep)) {
 						return {
 							block: true,
-							reason: `Plan mode: ${event.toolName} is blocked. Only files under .pi/plans/ can be modified. Use /plan to exit plan mode first.`,
+							reason: `Plan mode: ${event.toolName} is blocked. Only files under .pi/plans/ can be modified. Use /end-plan to exit plan mode first.`,
 						};
 					}
 					// Ensure .pi/plans/ exists (may be missing after session reconstruction)
@@ -541,7 +616,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			}
 			return {
 				block: true,
-				reason: `Plan mode: ${event.toolName} is blocked. Only files under .pi/plans/ can be modified. Use /plan to exit plan mode first.`,
+				reason: `Plan mode: ${event.toolName} is blocked. Only files under .pi/plans/ can be modified. Use /end-plan to exit plan mode first.`,
 			};
 		}
 
@@ -551,7 +626,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			if (!isSafeCommand(command)) {
 				return {
 					block: true,
-					reason: `Plan mode: command blocked (not read-only).\nCommand: ${command}\n\nOnly read-only commands are allowed. Use /plan to exit plan mode first.`,
+					reason: `Plan mode: command blocked (not read-only).\nCommand: ${command}\n\nOnly read-only commands are allowed. Use /end-plan to exit plan mode first.`,
 				};
 			}
 		}
