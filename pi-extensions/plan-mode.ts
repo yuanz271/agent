@@ -567,6 +567,8 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			if (filePath) {
 				try {
 					const absPath = path.resolve(ctx.cwd, filePath);
+					// Allow /dev/null (harmless sink)
+					if (absPath === "/dev/null") return;
 					const plansDirPath = path.resolve(ctx.cwd, ".pi", "plans");
 					// Fast-reject: skip filesystem ops for paths clearly outside .pi/plans/
 					if (!absPath.startsWith(plansDirPath + path.sep)) {
