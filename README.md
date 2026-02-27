@@ -18,6 +18,7 @@ All skill files are in the [`skills`](skills) folder:
 * [`/summarize`](skills/summarize) - Converting URLs/files to Markdown with optional summaries
 * [`/tmux`](skills/tmux) - Driving tmux directly with keystrokes and pane output scraping
 * [`/uv`](skills/uv) - Using `uv` for Python dependency management and script execution
+* [`/plan`](skills/plan) - Prompt-only plan mode that self-activates on planning intent
 
 ## PI Coding Agent Extensions
 
@@ -31,7 +32,6 @@ Custom extensions for the PI Coding Agent can be found in the [`pi-extensions`](
 * [`go-to-bed.ts`](pi-extensions/go-to-bed.ts) - Late-night safety guard that encourages sleep during quiet hours (00:00-06:00 local time) and requires explicit confirmation to continue after midnight.
 * [`loop.ts`](pi-extensions/loop.ts) - Runs a prompt loop for rapid iterative coding with optional auto-continue control.
 * [`notify.ts`](pi-extensions/notify.ts) - Sends native desktop notifications when the agent finishes (OSC 777 compatible terminals).
-* [`plan-mode.ts`](pi-extensions/plan-mode.ts) - Read-only planning sandbox inspired by OpenCode's plan/build architecture. Enforces read-only exploration via tool restriction, bash allowlist, and system prompt injection, then transitions to full build mode with plan execution tracking.
 * [`review.ts`](pi-extensions/review.ts) - Code review command inspired by Codex. Supports reviewing uncommitted changes, against a base branch (PR style), specific commits, or with custom instructions. Includes Ctrl+R shortcut.
 * [`session-breakdown.ts`](pi-extensions/session-breakdown.ts) - Interactive TUI to analyze the last 7/30/90 days of Pi session usage (sessions + cost by model) with a GitHub-style usage graph.
 * [`todos.ts`](pi-extensions/todos.ts) - Todo manager extension with file-backed storage and a TUI for listing and editing todos.
